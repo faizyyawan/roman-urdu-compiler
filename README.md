@@ -15,7 +15,7 @@ Roman Urdu Compiler is a small educational programming language implemented for 
 
 - Integer variables using `adad`
 - Assignment and arithmetic: `+`, `-`, `*`, `/`, `%`
-- Comparisons: `<`, `<=`, `>`, `>=`, `==`, `!=`
+- Comparisons: `chota hay` (`<`), `chota barabar` (`<=`), `bara hay` (`>`), `bara barabar` (`>=`), `barabar` (`==`), and `nahibarabar` (`!=`)
 - Boolean operators: `&&`, `||`, `!`
 - Conditional blocks using `agar` and `warna`
 - While loops using `jabtak`
@@ -127,7 +127,7 @@ jabtak (n > 1) {
     n = n - 1 kardo
 }
 
-agar (factorial == 120) {
+agar (factorial barabar 120) {
     dikhao("jawab durust hai") kardo
 } warna {
     dikhao("jawab ghalat hai") kardo
@@ -148,6 +148,12 @@ Keyword reference:
 | `dikhao` | Print a string or integer expression |
 | `wapis` | Return from the program |
 | `kardo` | End a statement |
+| `barabar` | Equal comparison (`==`) |
+| `nahibarabar` | Not-equal comparison (`!=`) |
+| `bara hay` | Greater-than comparison (`>`) |
+| `chota hay` | Less-than comparison (`<`) |
+| `bara barabar` | Greater-than-or-equal comparison (`>=`) |
+| `chota barabar` | Less-than-or-equal comparison (`<=`) |
 
 Variables must be declared before they are used at runtime. This first version uses a single program-wide integer namespace; nested block scopes and user-defined functions are outside the project scope. Integer expressions use signed 32-bit LLVM values in the AOT compiler.
 
@@ -190,6 +196,7 @@ The image builds the project and runs all tests during image creation. Its defau
 - `src/codegen.c` - LLVM IR emission for expressions, variables, output, branches, and loops.
 - `examples/demo.ru` - Full demonstration of variables, branches, loops, strings, and arithmetic.
 - `examples/factorial.ru` - Small factorial example.
+- `examples/comparisons.ru` - Equality and inequality keyword example.
 - `tests/run_tests.sh` - End-to-end regression tests for both phases.
 - `Makefile` - Linux build, test, demo, and cleanup targets.
 - `Dockerfile` - Reproducible Ubuntu 24.04 build and test environment.

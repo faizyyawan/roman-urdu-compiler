@@ -45,6 +45,12 @@ static char *decode_string(const char *text, size_t length) {
 "dikhao"                 return DIKHAO;
 "wapis"                  return WAPIS;
 "kardo"                  return KARDO;
+"barabar"                return EQ;
+"nahibarabar"            return NE;
+"bara"[ \t]+"barabar"   return GE;
+"chota"[ \t]+"barabar"  return LE;
+"bara"[ \t]+"hay"       return '>';
+"chota"[ \t]+"hay"      return '<';
 "<="                     return LE;
 ">="                     return GE;
 "=="                     return EQ;
