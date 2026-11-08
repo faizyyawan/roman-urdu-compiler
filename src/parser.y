@@ -4,12 +4,14 @@
 
 %{
 #include <stdio.h>
-#include <stdlib.h>
 #include "ast.h"
+#include "frontend.h"
 
 extern FILE *yyin;
 extern int yylineno;
 int yylex(void);
+int yyparse(void);
+void yyrestart(FILE *input);
 void yyerror(const char *message);
 static Ast *program_root;
 %}
@@ -93,25 +95,22 @@ void yyerror(const char *message) {
     fprintf(stderr, "line %d: %s\n", yylineno, message);
 }
 
-int main(int argc, char **argv) {
+int parse_program(FILE *input, Ast **program) {
     int result;
-    if (argc != 2) {
-        fprintf(stderr, "usage: %s program.ru\n", argv[0]);
-        return 2;
-    }
-    yyin = fopen(argv[1], "r");
-    if (!yyin) {
-        perror(argv[1]);
-        return 2;
-    }
+    if (!input || !program) return 1;
+    program_root = NULL;
+    *program = NULL;
+    yylineno = 1;
+    yyin = input;
+    yyrestart(input);
     result = yyparse();
-    fclose(yyin);
     if (result != 0) {
         ast_free(program_root);
+        program_root = NULL;
         return 1;
     }
-    result = interpret(program_root);
-    ast_free(program_root);
-    return result;
+    *program = program_root;
+    program_root = NULL;
+    return 0;
 }
 

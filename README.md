@@ -1,9 +1,9 @@
 # Roman Urdu Compiler
 
-Roman Urdu Compiler is a small educational programming language implemented for the Compiler Construction course project. It uses familiar Roman Urdu keywords while demonstrating two complete execution paths:
+Roman Urdu Compiler is a small educational programming language implemented for the Compiler Construction course project. The project has one shared Flex scanner, one shared Bison grammar, and one command-line program with two execution modes:
 
-- **Phase 1 - Interpreter:** Flex tokenizes source code, Bison parses it into an abstract syntax tree (AST), and C code evaluates the AST directly. No intermediate code is generated.
-- **Phase 2 - AOT Compiler:** Flex and Bison parse the same language, then C code emits LLVM IR. Clang compiles that IR into a native executable ahead of time.
+- **Interpreter mode:** evaluates the parsed abstract syntax tree (AST) directly in C without generating intermediate code. This fulfills the Phase 1 requirement.
+- **Compiler mode:** emits LLVM IR from the same AST. Clang compiles that IR into a native executable ahead of time. This fulfills the Phase 2 requirement.
 
 ## Project Members
 
@@ -53,22 +53,21 @@ make
 
 This creates:
 
-- `bin/roman-urdu-interpreter` - Phase 1 interpreter
-- `bin/roman-urdu-compiler` - Phase 2 LLVM IR generator
+- `bin/roman-urdu` - unified interpreter and LLVM IR compiler
 
-Individual phases can be built separately:
+Both modes use the same scanner, grammar, AST, and executable. Select the required behavior with a command:
 
 ```bash
-make phase1
-make phase2
+./bin/roman-urdu interpret program.ru
+./bin/roman-urdu compile program.ru output.ll
 ```
 
-## Phase 1: Run the Interpreter
+## Interpreter Mode
 
 Pass one Roman Urdu source file to the interpreter:
 
 ```bash
-./bin/roman-urdu-interpreter examples/demo.ru
+./bin/roman-urdu interpret examples/demo.ru
 ```
 
 Expected output:
@@ -81,12 +80,12 @@ y bara hai
 
 The interpreter returns the value supplied to `wapis`. A syntax error includes its source line number. Runtime errors, such as use of an undefined variable or division by zero, are written to standard error.
 
-## Phase 2: Generate LLVM IR and Build an Executable
+## AOT Compiler Mode
 
 Generate LLVM IR:
 
 ```bash
-./bin/roman-urdu-compiler examples/demo.ru build/demo.ll
+./bin/roman-urdu compile examples/demo.ru build/demo.ll
 ```
 
 Compile the IR into a native executable:
@@ -104,7 +103,7 @@ Run the executable:
 The result matches the interpreter output. If the output filename is omitted, the compiler writes LLVM IR to standard output:
 
 ```bash
-./bin/roman-urdu-compiler examples/demo.ru > build/demo.ll
+./bin/roman-urdu compile examples/demo.ru > build/demo.ll
 ```
 
 The complete three-command workflow is also available through:
@@ -121,7 +120,7 @@ Roman Urdu source files conventionally use the `.ru` extension.
 adad n = 5 kardo
 adad factorial = 1 kardo
 
-jabtak (n > 1) {
+jabtak (n bara hay 1) {
     factorial = factorial * n kardo
     n = n - 1 kardo
 }
@@ -158,18 +157,18 @@ Variables must be declared before they are used at runtime. This first version u
 
 ## Run the Automated Tests
 
-Build both phases and run end-to-end tests:
+Build the unified program and run end-to-end tests for both modes:
 
 ```bash
 make test
 ```
 
-The test script checks the demo, factorial, and comparison programs in both modes. For Phase 2 it generates LLVM IR, compiles the IR with Clang, runs the native binaries, and compares their output with the expected results.
+The test script checks the demo, factorial, and comparison programs in both modes. In compiler mode it generates LLVM IR, compiles the IR with Clang, runs the native binaries, and compares their output with the expected results.
 
 Expected final line:
 
 ```text
-All Phase 1 and Phase 2 tests passed.
+All interpreter and compiler tests passed.
 ```
 
 ## Optional Docker Verification
@@ -185,18 +184,18 @@ The image builds the project and runs all tests during image creation. Its defau
 
 ## Project Files
 
-- `phase1/lexer.l` - Flex scanner for the interpreter.
-- `phase1/parser.y` - Bison grammar and Phase 1 command-line entry point.
-- `phase2/lexer.l` - Flex scanner for the AOT compiler.
-- `phase2/parser.y` - Bison grammar and Phase 2 command-line entry point.
+- `src/lexer.l` - Shared Flex scanner for both execution modes.
+- `src/parser.y` - Shared Bison grammar that builds the AST.
+- `src/main.c` - Command-line entry point and mode selection.
 - `include/ast.h` - AST node definitions and interpreter interface.
 - `include/codegen.h` - LLVM IR code generator interface.
+- `include/frontend.h` - Shared parser interface.
 - `src/ast.c` - AST construction, cleanup, symbol table, and interpreter execution.
 - `src/codegen.c` - LLVM IR emission for expressions, variables, output, branches, and loops.
 - `examples/demo.ru` - Full demonstration of variables, branches, loops, strings, and arithmetic.
 - `examples/factorial.ru` - Small factorial example.
 - `examples/comparisons.ru` - Equality and inequality keyword example.
-- `tests/run_tests.sh` - End-to-end regression tests for both phases.
+- `tests/run_tests.sh` - End-to-end regression tests for both modes.
 - `Makefile` - Linux build, test, demo, and cleanup targets.
 - `Dockerfile` - Reproducible Arch Linux build and test environment.
 - `README.md` - Markdown version of the project guide.
