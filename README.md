@@ -24,13 +24,12 @@ Roman Urdu Compiler is a small educational programming language implemented for 
 - Statement termination using `kardo`
 - Line comments beginning with `#` or `//`
 
-## Linux Dependencies
+## Arch Linux Dependencies
 
-The project is designed and tested for Ubuntu 24.04. Install the required packages with:
+Arch Linux is the primary target platform. Install the required packages with:
 
 ```bash
-sudo apt update
-sudo apt install -y build-essential flex bison clang make
+sudo pacman -Syu --needed base-devel flex bison clang
 ```
 
 Required tools:
@@ -38,7 +37,7 @@ Required tools:
 - GCC or another C11 compiler for building the interpreter and compiler
 - Flex 2.6 or newer for lexical analysis
 - Bison 3.8 or newer for parsing
-- Clang/LLVM 18 or newer for compiling generated LLVM IR
+- Clang/LLVM for compiling generated LLVM IR
 - GNU Make for the supplied build targets
 
 No third-party C libraries are required.
@@ -165,7 +164,7 @@ Build both phases and run end-to-end tests:
 make test
 ```
 
-The test script checks the demo and factorial programs in both modes. For Phase 2 it generates LLVM IR, compiles the IR with Clang, runs the native binaries, and compares their output with the expected results.
+The test script checks the demo, factorial, and comparison programs in both modes. For Phase 2 it generates LLVM IR, compiles the IR with Clang, runs the native binaries, and compares their output with the expected results.
 
 Expected final line:
 
@@ -175,7 +174,7 @@ All Phase 1 and Phase 2 tests passed.
 
 ## Optional Docker Verification
 
-If Docker is available, reproduce the tested Ubuntu environment with:
+If Docker is available, reproduce the tested Arch Linux environment with:
 
 ```bash
 docker build -t roman-urdu-compiler .
@@ -199,7 +198,7 @@ The image builds the project and runs all tests during image creation. Its defau
 - `examples/comparisons.ru` - Equality and inequality keyword example.
 - `tests/run_tests.sh` - End-to-end regression tests for both phases.
 - `Makefile` - Linux build, test, demo, and cleanup targets.
-- `Dockerfile` - Reproducible Ubuntu 24.04 build and test environment.
+- `Dockerfile` - Reproducible Arch Linux build and test environment.
 - `README.md` - Markdown version of the project guide.
 - `README.pdf` - Submission-ready PDF version of the project guide.
 - `Roman_Urdu_Compiler.pdf` - Original project idea document.
@@ -209,8 +208,8 @@ Generated files are placed under `build/` and `bin/`; both directories can be re
 
 ## Troubleshooting
 
-- `flex: command not found` or `bison: command not found`: install the packages listed under Linux Dependencies.
-- `clang: command not found`: install `clang` with APT.
+- `flex: command not found` or `bison: command not found`: install the packages listed under Arch Linux Dependencies.
+- `clang: command not found`: install it with `sudo pacman -S clang`.
 - `line N: syntax error`: check for a missing `kardo`, parenthesis, or brace near the reported line.
 - `runtime error: undefined variable`: declare the variable with `adad` before assigning or reading it.
 - `Permission denied` when running a script: invoke it through `sh tests/run_tests.sh`; executable permission is not required in that form.

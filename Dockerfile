@@ -1,8 +1,8 @@
-FROM ubuntu:24.04
+FROM archlinux:latest
 
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    --no-install-recommends build-essential flex bison clang ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+RUN pacman -Syu --noconfirm --needed \
+    base-devel flex bison clang ca-certificates \
+    && pacman -Scc --noconfirm
 
 WORKDIR /project
 COPY . .
