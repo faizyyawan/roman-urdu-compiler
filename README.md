@@ -1,6 +1,6 @@
 # Roman Urdu Compiler
 
-Roman Urdu Compiler is a small educational programming language implemented for the Compiler Construction course project. The project has one shared Flex scanner, one shared Bison grammar, and one command-line program with two execution modes:
+Roman Urdu Compiler is a small educational programming language implemented for the Compiler Construction course project. The project has one shared Flex scanner, one shared Bison grammar, one semantic checker, and one command-line program with two execution modes:
 
 - **Interpreter mode:** evaluates the parsed abstract syntax tree (AST) directly in C without generating intermediate code. This fulfills the Phase 1 requirement.
 - **Compiler mode:** emits LLVM IR from the same AST. Clang compiles that IR into a native executable ahead of time. This fulfills the Phase 2 requirement.
@@ -60,6 +60,7 @@ Both modes use the same scanner, grammar, AST, and executable. Select the requir
 ```bash
 ./bin/roman-urdu interpret program.ru
 ./bin/roman-urdu compile program.ru output.ll
+./bin/roman-urdu build program.ru executable
 ```
 
 ## Interpreter Mode
@@ -78,11 +79,18 @@ y bara hai
 15
 ```
 
-The interpreter returns the value supplied to `wapis`. A syntax error includes its source line number. Runtime errors, such as use of an undefined variable or division by zero, are written to standard error.
+The interpreter returns the value supplied to `wapis`. Syntax errors include their source line number. Semantic errors, such as use of a variable before declaration, are rejected before execution. Runtime errors, such as division by zero, are written to standard error.
 
 ## AOT Compiler Mode
 
-Generate LLVM IR:
+Build a native executable directly:
+
+```bash
+./bin/roman-urdu build examples/demo.ru build/demo
+./build/demo
+```
+
+The `build` command generates temporary LLVM IR, runs Clang, and removes the temporary file. To inspect or compile the LLVM IR manually, generate it with:
 
 ```bash
 ./bin/roman-urdu compile examples/demo.ru build/demo.ll
@@ -94,13 +102,13 @@ Compile the IR into a native executable:
 clang build/demo.ll -o build/demo
 ```
 
-Run the executable:
+Then run the executable:
 
 ```bash
 ./build/demo
 ```
 
-The result matches the interpreter output. If the output filename is omitted, the compiler writes LLVM IR to standard output:
+Both workflows produce the same result as interpreter mode. If the IR output filename is omitted, compiler mode writes LLVM IR to standard output:
 
 ```bash
 ./bin/roman-urdu compile examples/demo.ru > build/demo.ll
@@ -153,7 +161,7 @@ Keyword reference:
 | `bara barabar` | Greater-than-or-equal comparison (`>=`) |
 | `chota barabar` | Less-than-or-equal comparison (`<=`) |
 
-Variables must be declared before they are used at runtime. This first version uses a single program-wide integer namespace; nested block scopes and user-defined functions are outside the project scope. Integer expressions use signed 32-bit LLVM values in the AOT compiler.
+Variables must be declared once, at top level, before they are assigned or used. The language uses a single program-wide integer namespace; declarations inside `agar`, `warna`, or `jabtak` blocks are rejected by the shared semantic checker. Integer expressions use signed 32-bit values. Interpreter and native modes both provide short-circuit Boolean evaluation and report division or modulo by zero.
 
 ## Run the Automated Tests
 
@@ -163,12 +171,12 @@ Build the unified program and run end-to-end tests for both modes:
 make test
 ```
 
-The test script checks the demo, factorial, and comparison programs in both modes. In compiler mode it generates LLVM IR, compiles the IR with Clang, runs the native binaries, and compares their output with the expected results.
+The test suite checks demo, factorial, comparison, and short-circuit programs in both modes. It also checks direct AOT builds, syntax errors, integer overflow, invalid declarations, use-before-declaration, and matching division/modulo-by-zero behavior. Sanitizer builds can be run by overriding `CFLAGS`.
 
 Expected final line:
 
 ```text
-All interpreter and compiler tests passed.
+All interpreter, compiler, semantic, and runtime tests passed.
 ```
 
 ## Optional Docker Verification
@@ -190,12 +198,15 @@ The image builds the project and runs all tests during image creation. Its defau
 - `include/ast.h` - AST node definitions and interpreter interface.
 - `include/codegen.h` - LLVM IR code generator interface.
 - `include/frontend.h` - Shared parser interface.
+- `include/semantic.h` - Shared semantic validation interface.
 - `src/ast.c` - AST construction, cleanup, symbol table, and interpreter execution.
+- `src/semantic.c` - Declaration and variable-use validation shared by both modes.
 - `src/codegen.c` - LLVM IR emission for expressions, variables, output, branches, and loops.
 - `examples/demo.ru` - Full demonstration of variables, branches, loops, strings, and arithmetic.
 - `examples/factorial.ru` - Small factorial example.
 - `examples/comparisons.ru` - Equality and inequality keyword example.
-- `tests/run_tests.sh` - End-to-end regression tests for both modes.
+- `tests/run_tests.sh` - End-to-end positive and negative regression tests.
+- `tests/programs/` - Source programs used for semantic, parser, runtime, and short-circuit tests.
 - `Makefile` - Linux build, test, demo, and cleanup targets.
 - `Dockerfile` - Reproducible Arch Linux build and test environment.
 - `README.md` - Markdown version of the project guide.
@@ -210,7 +221,8 @@ Generated files are placed under `build/` and `bin/`; both directories can be re
 - `flex: command not found` or `bison: command not found`: install the packages listed under Arch Linux Dependencies.
 - `clang: command not found`: install it with `sudo pacman -S clang`.
 - `line N: syntax error`: check for a missing `kardo`, parenthesis, or brace near the reported line.
-- `runtime error: undefined variable`: declare the variable with `adad` before assigning or reading it.
+- `semantic error`: declare each variable once at top level before assigning or reading it.
+- `runtime error: division by zero` or `runtime error: modulo by zero`: correct the expression or input value.
 - `Permission denied` when running a script: invoke it through `sh tests/run_tests.sh`; executable permission is not required in that form.
 
 ## Clean Generated Files

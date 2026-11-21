@@ -2,7 +2,7 @@
 adad x = 10 kardo
 adad y = 20 kardo
 
-agar (x < y) {
+agar (x chota hay y) {
     dikhao("y bara hai") kardo
 } warna {
     dikhao("x bara ya barabar hai") kardo
@@ -10,7 +10,7 @@ agar (x < y) {
 
 adad jama = 0 kardo
 adad i = 1 kardo
-jabtak (i <= 5) {
+jabtak (i chota barabar 5) {
     jama = jama + i kardo
     i = i + 1 kardo
 }

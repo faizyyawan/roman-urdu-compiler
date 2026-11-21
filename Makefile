@@ -15,16 +15,15 @@ build/parser.tab.c build/parser.tab.h: src/parser.y include/ast.h include/fronte
 build/lexer.yy.c: src/lexer.l build/parser.tab.h | build
 	flex -o $@ src/lexer.l
 
-bin/roman-urdu: build/parser.tab.c build/lexer.yy.c src/main.c src/ast.c src/codegen.c include/ast.h include/codegen.h include/frontend.h | bin
-	$(CC) $(CFLAGS) $(CPPFLAGS) -Ibuild -o $@ build/parser.tab.c build/lexer.yy.c src/main.c src/ast.c src/codegen.c
+bin/roman-urdu: build/parser.tab.c build/lexer.yy.c src/main.c src/ast.c src/semantic.c src/codegen.c include/ast.h include/codegen.h include/frontend.h include/semantic.h | bin
+	$(CC) $(CFLAGS) $(CPPFLAGS) -Ibuild -o $@ build/parser.tab.c build/lexer.yy.c src/main.c src/ast.c src/semantic.c src/codegen.c
 
 test: all
 	sh tests/run_tests.sh
 
 demo: all
 	bin/roman-urdu interpret examples/demo.ru
-	bin/roman-urdu compile examples/demo.ru build/demo.ll
-	clang build/demo.ll -o build/demo
+	bin/roman-urdu build examples/demo.ru build/demo
 	build/demo
 
 clean:

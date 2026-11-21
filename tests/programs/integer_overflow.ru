@@ -1,0 +1,2 @@
+adad x = 999999999999999999999999 kardo
+wapis 0 kardo

@@ -1,7 +1,7 @@
 adad n = 5 kardo
 adad factorial = 1 kardo
 
-jabtak (n > 1) {
+jabtak (n bara hay 1) {
     factorial = factorial * n kardo
     n = n - 1 kardo
 }

@@ -1,6 +1,8 @@
 %option noyywrap yylineno nodefault nounput noinput never-interactive
 
 %{
+#include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,6 +32,16 @@ static char *decode_string(const char *text, size_t length) {
     result[target] = '\0';
     return result;
 }
+
+static int parse_integer(const char *text, int *value) {
+    char *end;
+    long parsed;
+    errno = 0;
+    parsed = strtol(text, &end, 10);
+    if (errno == ERANGE || parsed > INT_MAX || end == text || *end != '\0') return 0;
+    *value = (int)parsed;
+    return 1;
+}
 %}
 
 %%
@@ -57,7 +69,13 @@ static char *decode_string(const char *text, size_t length) {
 "!="                     return NE;
 "&&"                     return AND;
 "||"                     return OR;
-[0-9]+                   { yylval.integer = atoi(yytext); return NUMBER; }
+[0-9]+                   {
+                             if (!parse_integer(yytext, &yylval.integer)) {
+                                 fprintf(stderr, "line %d: integer literal is out of range: %s\n", yylineno, yytext);
+                                 return INVALID;
+                             }
+                             return NUMBER;
+                         }
 \"([^\"\\]|\\.)*\"       { yylval.text = decode_string(yytext, (size_t)yyleng); return STRING; }
 [A-Za-z_][A-Za-z0-9_]*  { yylval.text = copy_text(yytext, (size_t)yyleng); return IDENTIFIER; }
 [(){}=+*/%<>!-]          return yytext[0];

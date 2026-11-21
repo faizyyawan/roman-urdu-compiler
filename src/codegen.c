@@ -1,6 +1,5 @@
 #include "codegen.h"
 
-#include <ctype.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,6 +26,7 @@ typedef struct {
     StringConstant *strings;
     int next_temporary;
     int next_label;
+    char current_block[64];
     int failed;
 } Generator;
 
@@ -76,7 +76,6 @@ static void add_string(Generator *generator, Ast *node) {
     string->length = strlen(node->as.string) + 1;
     tail = &generator->strings;
     while (*tail) tail = &(*tail)->next;
-    string->id = *tail ? (*tail)->id + 1 : 0;
     if (generator->strings) {
         StringConstant *last = generator->strings;
         while (last->next) last = last->next;
@@ -114,6 +113,12 @@ static int temporary(Generator *generator) {
 
 static int label(Generator *generator) {
     return generator->next_label++;
+}
+
+static void begin_block(Generator *generator, const char *prefix, int number) {
+    snprintf(generator->current_block, sizeof(generator->current_block),
+             "%s.%d", prefix, number);
+    fprintf(generator->output, "\n%s:\n", generator->current_block);
 }
 
 static Value immediate(int integer) {
@@ -157,15 +162,71 @@ static Value emit_expression(Generator *generator, Ast *expression) {
             second = temporary(generator);
             fprintf(generator->output, "  %%t%d = zext i1 %%t%d to i32\n", second, first);
             return register_value(second);
-        case AST_BINARY:
+        case AST_BINARY: {
+            AstOp operation = expression->as.operation.op;
             left = emit_expression(generator, expression->as.operation.left);
+            if (operation == OP_AND || operation == OP_OR) {
+                int rhs_label = label(generator);
+                int short_label = label(generator);
+                int end_label = label(generator);
+                int combined;
+                int widened;
+                char rhs_block[64];
+                first = temporary(generator);
+                fprintf(generator->output, "  %%t%d = icmp ne i32 %s, 0\n", first, left.text);
+                if (operation == OP_AND) {
+                    fprintf(generator->output,
+                            "  br i1 %%t%d, label %%bool.rhs.%d, label %%bool.short.%d\n",
+                            first, rhs_label, short_label);
+                } else {
+                    fprintf(generator->output,
+                            "  br i1 %%t%d, label %%bool.short.%d, label %%bool.rhs.%d\n",
+                            first, short_label, rhs_label);
+                }
+                begin_block(generator, "bool.rhs", rhs_label);
+                right = emit_expression(generator, expression->as.operation.right);
+                second = temporary(generator);
+                fprintf(generator->output, "  %%t%d = icmp ne i32 %s, 0\n", second, right.text);
+                snprintf(rhs_block, sizeof(rhs_block), "%s", generator->current_block);
+                fprintf(generator->output, "  br label %%bool.end.%d\n", end_label);
+                begin_block(generator, "bool.short", short_label);
+                fprintf(generator->output, "  br label %%bool.end.%d\n", end_label);
+                begin_block(generator, "bool.end", end_label);
+                combined = temporary(generator);
+                fprintf(generator->output,
+                        "  %%t%d = phi i1 [ %%t%d, %%%s ], [ %s, %%bool.short.%d ]\n",
+                        combined, second, rhs_block,
+                        operation == OP_AND ? "false" : "true", short_label);
+                widened = temporary(generator);
+                fprintf(generator->output, "  %%t%d = zext i1 %%t%d to i32\n", widened, combined);
+                return register_value(widened);
+            }
+
             right = emit_expression(generator, expression->as.operation.right);
-            switch (expression->as.operation.op) {
+            if (operation == OP_DIV || operation == OP_MOD) {
+                int zero_test = temporary(generator);
+                int zero_label = label(generator);
+                int ok_label = label(generator);
+                fprintf(generator->output, "  %%t%d = icmp eq i32 %s, 0\n", zero_test, right.text);
+                fprintf(generator->output,
+                        "  br i1 %%t%d, label %%arith.zero.%d, label %%arith.ok.%d\n",
+                        zero_test, zero_label, ok_label);
+                begin_block(generator, "arith.zero", zero_label);
+                fprintf(generator->output,
+                        "  call i32 (ptr, ...) @printf(ptr @.err.%s)\n",
+                        operation == OP_DIV ? "division" : "modulo");
+                fputs("  call void @exit(i32 1)\n  unreachable\n", generator->output);
+                begin_block(generator, "arith.ok", ok_label);
+                first = temporary(generator);
+                fprintf(generator->output, "  %%t%d = %s i32 %s, %s\n", first,
+                        operation == OP_DIV ? "sdiv" : "srem", left.text, right.text);
+                return register_value(first);
+            }
+
+            switch (operation) {
                 case OP_ADD: instruction = "add"; break;
                 case OP_SUB: instruction = "sub"; break;
                 case OP_MUL: instruction = "mul"; break;
-                case OP_DIV: instruction = "sdiv"; break;
-                case OP_MOD: instruction = "srem"; break;
                 default: break;
             }
             if (instruction) {
@@ -173,21 +234,7 @@ static Value emit_expression(Generator *generator, Ast *expression) {
                 fprintf(generator->output, "  %%t%d = %s i32 %s, %s\n", first, instruction, left.text, right.text);
                 return register_value(first);
             }
-            if (expression->as.operation.op == OP_AND || expression->as.operation.op == OP_OR) {
-                first = temporary(generator);
-                fprintf(generator->output, "  %%t%d = icmp ne i32 %s, 0\n", first, left.text);
-                second = temporary(generator);
-                fprintf(generator->output, "  %%t%d = icmp ne i32 %s, 0\n", second, right.text);
-                {
-                    int combined = temporary(generator);
-                    int widened = temporary(generator);
-                    fprintf(generator->output, "  %%t%d = %s i1 %%t%d, %%t%d\n", combined,
-                            expression->as.operation.op == OP_AND ? "and" : "or", first, second);
-                    fprintf(generator->output, "  %%t%d = zext i1 %%t%d to i32\n", widened, combined);
-                    return register_value(widened);
-                }
-            }
-            switch (expression->as.operation.op) {
+            switch (operation) {
                 case OP_LT: instruction = "slt"; break;
                 case OP_LE: instruction = "sle"; break;
                 case OP_GT: instruction = "sgt"; break;
@@ -201,6 +248,7 @@ static Value emit_expression(Generator *generator, Ast *expression) {
             second = temporary(generator);
             fprintf(generator->output, "  %%t%d = zext i1 %%t%d to i32\n", second, first);
             return register_value(second);
+        }
         default:
             codegen_error(generator, "invalid expression node");
             return left;
@@ -253,33 +301,33 @@ static int emit_statements(Generator *generator, Ast *statement) {
                 else_label = label(generator);
                 end_label = label(generator);
                 fprintf(generator->output, "  %%t%d = icmp ne i32 %s, 0\n", condition, value.text);
-                fprintf(generator->output, "  br i1 %%t%d, label %%if.then.%d, label %%if.else.%d\n\n",
+                fprintf(generator->output, "  br i1 %%t%d, label %%if.then.%d, label %%if.else.%d\n",
                         condition, then_label, else_label);
-                fprintf(generator->output, "if.then.%d:\n", then_label);
+                begin_block(generator, "if.then", then_label);
                 then_terminated = emit_statements(generator, statement->as.conditional.then_branch);
                 if (!then_terminated) fprintf(generator->output, "  br label %%if.end.%d\n", end_label);
-                fprintf(generator->output, "\nif.else.%d:\n", else_label);
+                begin_block(generator, "if.else", else_label);
                 else_terminated = emit_statements(generator, statement->as.conditional.else_branch);
                 if (!else_terminated) fprintf(generator->output, "  br label %%if.end.%d\n", end_label);
                 if (then_terminated && else_terminated && statement->as.conditional.else_branch) return 1;
-                fprintf(generator->output, "\nif.end.%d:\n", end_label);
+                begin_block(generator, "if.end", end_label);
                 break;
             case AST_WHILE:
                 then_label = label(generator);
                 else_label = label(generator);
                 end_label = label(generator);
-                fprintf(generator->output, "  br label %%while.cond.%d\n\n", then_label);
-                fprintf(generator->output, "while.cond.%d:\n", then_label);
+                fprintf(generator->output, "  br label %%while.cond.%d\n", then_label);
+                begin_block(generator, "while.cond", then_label);
                 value = emit_expression(generator, statement->as.loop.condition);
                 condition = temporary(generator);
                 fprintf(generator->output, "  %%t%d = icmp ne i32 %s, 0\n", condition, value.text);
-                fprintf(generator->output, "  br i1 %%t%d, label %%while.body.%d, label %%while.end.%d\n\n",
+                fprintf(generator->output, "  br i1 %%t%d, label %%while.body.%d, label %%while.end.%d\n",
                         condition, else_label, end_label);
-                fprintf(generator->output, "while.body.%d:\n", else_label);
+                begin_block(generator, "while.body", else_label);
                 if (!emit_statements(generator, statement->as.loop.body)) {
                     fprintf(generator->output, "  br label %%while.cond.%d\n", then_label);
                 }
-                fprintf(generator->output, "\nwhile.end.%d:\n", end_label);
+                begin_block(generator, "while.end", end_label);
                 break;
             case AST_RETURN:
                 value = emit_expression(generator, statement->as.expression);
@@ -330,15 +378,19 @@ int emit_llvm_ir(FILE *output, Ast *program) {
     if (generator.failed) { free_generator(&generator); return 1; }
 
     fputs("; Generated by Roman Urdu Compiler\n", output);
-    fputs("declare i32 @printf(ptr, ...)\n\n", output);
+    fputs("declare i32 @printf(ptr, ...)\n", output);
+    fputs("declare void @exit(i32)\n\n", output);
     fputs("@.fmt.int = private unnamed_addr constant [4 x i8] c\"%d\\0A\\00\"\n", output);
     fputs("@.fmt.str = private unnamed_addr constant [4 x i8] c\"%s\\0A\\00\"\n", output);
+    fputs("@.err.division = private unnamed_addr constant [33 x i8] c\"runtime error: division by zero\\0A\\00\"\n", output);
+    fputs("@.err.modulo = private unnamed_addr constant [31 x i8] c\"runtime error: modulo by zero\\0A\\00\"\n", output);
     for (string = generator.strings; string; string = string->next) {
         fprintf(output, "@.str.%d = private unnamed_addr constant [%zu x i8] c\"", string->id, string->length);
         emit_escaped_string(output, string->node->as.string);
         fputs("\"\n", output);
     }
     fputs("\ndefine i32 @main() {\nentry:\n", output);
+    snprintf(generator.current_block, sizeof(generator.current_block), "entry");
     for (variable = generator.variables; variable; variable = variable->next) {
         fprintf(output, "  %%v_%s = alloca i32\n", variable->name);
     }

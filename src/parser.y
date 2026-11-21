@@ -4,6 +4,7 @@
 
 %{
 #include <stdio.h>
+#include <stdlib.h>
 #include "ast.h"
 #include "frontend.h"
 
@@ -22,13 +23,18 @@ static Ast *program_root;
     int integer;
     char *text;
     Ast *node;
+    Ast *root;
 }
 
 %token <integer> NUMBER
 %token <text> IDENTIFIER STRING
 %token ADAD AGAR WARNA JABTAK DIKHAO WAPIS KARDO
-%token LE GE EQ NE AND OR
-%type <node> program statement_list statement block optional_else expression
+%token LE GE EQ NE AND OR INVALID
+%type <root> program
+%type <node> statement_list statement block optional_else expression
+
+%destructor { free($$); } <text>
+%destructor { ast_free($$); } <node>
 
 %left OR
 %left AND
